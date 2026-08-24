@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -17,14 +17,20 @@ import {
 import LogoutIcon from "@mui/icons-material/Logout";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import SettingsIcon from "@mui/icons-material/Settings";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
 import {
   bindProject,
   fetchMe,
   loginAccount,
   logoutAccount,
   registerAccount,
+  getBackendUrl,
+  setBackendUrl,
+  testBackendConnection,
 } from "../api";
-import { USER_STORAGE_KEY } from "../config";
+import { USER_STORAGE_KEY, LAST_USERNAME_KEY } from "../config";
 import type { Account } from "../types";
 
 interface Props {
@@ -47,6 +53,26 @@ export default function AccountBar({ account, onChange }: Props) {
   const [projectId, setProjectId] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // 后端地址配置
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [backendUrl, setBackendUrlState] = useState(getBackendUrl);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null);
+
+  // 自动填充上次登录用户名
+  useEffect(() => {
+    if (open && mode === "login") {
+      try {
+        const lastUsername = localStorage.getItem(LAST_USERNAME_KEY);
+        if (lastUsername && !username) {
+          setUsername(lastUsername);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [open, mode, username]);
 
   const handleAuth = async () => {
     setErr(null);
@@ -91,9 +117,10 @@ export default function AccountBar({ account, onChange }: Props) {
         token: result.token,
       };
       localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(acc));
+      // 保存用户名用于下次自动填充（不保存密码）
+      localStorage.setItem(LAST_USERNAME_KEY, username.trim());
       onChange(acc);
       setOpen(false);
-      setUsername("");
       setPassword("");
       setProjectId("");
     } catch (e) {
@@ -101,6 +128,19 @@ export default function AccountBar({ account, onChange }: Props) {
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleTestConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    const result = await testBackendConnection(backendUrl);
+    setTestResult(result);
+    setTesting(false);
+  };
+
+  const handleSaveBackendUrl = () => {
+    setBackendUrl(backendUrl);
+    setSettingsOpen(false);
   };
 
   const handleLogout = async () => {
@@ -170,10 +210,62 @@ export default function AccountBar({ account, onChange }: Props) {
             {err && <Typography color="error" variant="body2">{err}</Typography>}
           </DialogContent>
           <DialogActions>
+            <Tooltip title="配置后端地址">
+              <IconButton size="small" onClick={() => setSettingsOpen(true)}>
+                <SettingsIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Box sx={{ flex: 1 }} />
             <Button onClick={() => setOpen(false)}>取消</Button>
             <Button onClick={handleAuth} variant="contained" disabled={busy}>
               {busy ? "处理中…" : mode === "login" ? "登录" : "注册"}
             </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* 后端地址设置对话框 */}
+        <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)}>
+          <DialogTitle>后端配置</DialogTitle>
+          <DialogContent sx={{ width: 400, display: "flex", flexDirection: "column", gap: 2 }}>
+            <TextField
+              label="后端地址"
+              value={backendUrl}
+              onChange={(e) => setBackendUrlState(e.target.value)}
+              size="small"
+              fullWidth
+              placeholder="http://localhost:8080"
+              helperText="WebMirror 后端服务地址"
+              sx={{ mt: 1 }}
+            />
+            <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleTestConnection}
+                disabled={testing || !backendUrl.trim()}
+              >
+                {testing ? "测试中…" : "测试连接"}
+              </Button>
+              {testResult && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  {testResult.ok ? (
+                    <>
+                      <CheckCircleIcon color="success" fontSize="small" />
+                      <Typography variant="body2" color="success.main">连接成功</Typography>
+                    </>
+                  ) : (
+                    <>
+                      <ErrorIcon color="error" fontSize="small" />
+                      <Typography variant="body2" color="error.main">{testResult.error}</Typography>
+                    </>
+                  )}
+                </Box>
+              )}
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSettingsOpen(false)}>取消</Button>
+            <Button onClick={handleSaveBackendUrl} variant="contained">保存</Button>
           </DialogActions>
         </Dialog>
       </Box>

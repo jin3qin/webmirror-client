@@ -93,7 +93,7 @@ if not errorlevel 1 (
   popd
 ) else (
   echo [WARN] rsrc not found, exe will use default icon
-  echo         install: go install github.com/akavel/rsrc/cmd/rsrc@latest
+  echo         install: go install github.com/akavel/rsrc@latest
 )
 
 rem --- 7. build the desktop gateway exe ---

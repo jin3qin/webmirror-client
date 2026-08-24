@@ -1,4 +1,25 @@
 import type { Account, ConversationSummary, Message, SubmitReq, SubmitResp } from "./types";
+import { BACKEND_URL_KEY } from "./config";
+
+/** 获取当前后端地址：优先读 localStorage，未配置时返回空字符串（走网关代理） */
+export function getBackendUrl(): string {
+  try {
+    const saved = localStorage.getItem(BACKEND_URL_KEY);
+    if (saved && saved.trim()) return saved.trim();
+  } catch {
+    /* ignore */
+  }
+  return ""; // 空字符串表示使用相对路径，由网关或 Vite proxy 转发
+}
+
+/** 设置后端地址（登录弹窗保存时调用） */
+export function setBackendUrl(url: string): void {
+  try {
+    localStorage.setItem(BACKEND_URL_KEY, url.trim());
+  } catch {
+    /* ignore */
+  }
+}
 
 /** 同源请求：开发环境由 Vite proxy 转发，桌面 exe 由网关反代。 */
 const API_BASE = "";
@@ -35,17 +56,31 @@ export function clearToken(): void {
 /** 带 Authorization header 的 fetch 封装（受保护端点用） */
 function authFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const token = getToken();
+  const backendUrl = getBackendUrl();
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  return fetch(`${API_BASE}${input}`, { ...init, headers });
+  // 如果是本地开发（vite proxy），使用空 API_BASE；否则使用配置的后端地址
+  const base = import.meta.env.DEV ? API_BASE : backendUrl;
+  return fetch(`${base}${input}`, { ...init, headers });
 }
 
 /** 拼接后端图片完整 URL */
 export function imageUrl(rel: string): string {
   if (!rel) return "";
   if (/^https?:\/\//i.test(rel)) return rel;
-  return API_BASE + (rel.startsWith("/") ? rel : `/${rel}`);
+  const backendUrl = getBackendUrl();
+  const base = import.meta.env.DEV ? API_BASE : backendUrl;
+  return base + (rel.startsWith("/") ? rel : `/${rel}`);
+}
+
+/** 通用的 fetch 封装：自动根据环境选择后端地址 */
+function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const backendUrl = getBackendUrl();
+  const base = import.meta.env.DEV ? API_BASE : backendUrl;
+  const headers = new Headers(init.headers);
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  return fetch(`${base}${input}`, { ...init, headers });
 }
 
 // ===================== 桌面端版本 / 更新 =====================
@@ -59,19 +94,33 @@ export interface VersionInfo {
 
 /** 拉取当前/最新版本信息（桌面 exe 网关提供；dev 环境无此端点会抛错，调用方需静默处理） */
 export async function fetchVersion(): Promise<VersionInfo> {
-  const response = await fetch(`${API_BASE}/desktop/version`);
+  const response = await apiFetch("/desktop/version");
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return (await response.json()) as VersionInfo;
 }
 
 /** 触发桌面端自更新（下载新 exe 并替换重启）。成功时进程会重启，请求可能不返回。 */
 export async function triggerUpdate(): Promise<{ ok: boolean; error?: string }> {
-  const response = await fetch(`${API_BASE}/desktop/update/do`, { method: "POST" });
+  const response = await apiFetch("/desktop/update/do", { method: "POST" });
   const data = (await response.json().catch(() => ({ ok: false }))) as {
     ok: boolean;
     error?: string;
   };
   return data;
+}
+
+/** 测试后端连接（调用 /api/health 端点） */
+export async function testBackendConnection(url: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const response = await fetch(`${url}/api/health`, { method: "GET" });
+    if (!response.ok) {
+      return { ok: false, error: `连接失败: HTTP ${response.status}` };
+    }
+    const data = await response.json();
+    return { ok: data.ok === true, error: data.ok ? undefined : "后端响应异常" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "连接失败" };
+  }
 }
 
 // ===================== 账号 / 登录态 =====================
@@ -81,9 +130,8 @@ export async function registerAccount(
   username: string,
   password: string,
 ): Promise<{ userId: string; username: string; token: string }> {
-  const response = await fetch(`${API_BASE}/api/register`, {
+  const response = await apiFetch("/api/register", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
   });
   if (!response.ok) {
@@ -100,9 +148,8 @@ export async function loginAccount(
   username: string,
   password: string,
 ): Promise<{ userId: string; username: string; token: string }> {
-  const response = await fetch(`${API_BASE}/api/login`, {
+  const response = await apiFetch("/api/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
   });
   if (!response.ok) {
@@ -188,7 +235,9 @@ export async function submitPrompt(request: SubmitReq): Promise<SubmitResp> {
   const token = getToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(`${API_BASE}/api/submit`, {
+  const backendUrl = getBackendUrl();
+  const base = import.meta.env.DEV ? API_BASE : backendUrl;
+  const response = await fetch(`${base}/api/submit`, {
     method: "POST",
     headers,
     body: JSON.stringify(request),
@@ -202,5 +251,7 @@ export async function submitPrompt(request: SubmitReq): Promise<SubmitResp> {
 
 /** SSE 流连接（依赖同源/开发代理；EventSource 不支持自定义 header，taskId 本身即凭据） */
 export function openStream(taskId: string): EventSource {
-  return new EventSource(`${API_BASE}/api/stream/${encodeURIComponent(taskId)}`);
+  const backendUrl = getBackendUrl();
+  const base = import.meta.env.DEV ? API_BASE : backendUrl;
+  return new EventSource(`${base}/api/stream/${encodeURIComponent(taskId)}`);
 }

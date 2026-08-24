@@ -48,6 +48,32 @@ export function imageUrl(rel: string): string {
   return API_BASE + (rel.startsWith("/") ? rel : `/${rel}`);
 }
 
+// ===================== 桌面端版本 / 更新 =====================
+
+export interface VersionInfo {
+  current: string;
+  latest: string;
+  updateAvailable: boolean;
+  releaseUrl: string;
+}
+
+/** 拉取当前/最新版本信息（桌面 exe 网关提供；dev 环境无此端点会抛错，调用方需静默处理） */
+export async function fetchVersion(): Promise<VersionInfo> {
+  const response = await fetch(`${API_BASE}/desktop/version`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return (await response.json()) as VersionInfo;
+}
+
+/** 触发桌面端自更新（下载新 exe 并替换重启）。成功时进程会重启，请求可能不返回。 */
+export async function triggerUpdate(): Promise<{ ok: boolean; error?: string }> {
+  const response = await fetch(`${API_BASE}/desktop/update/do`, { method: "POST" });
+  const data = (await response.json().catch(() => ({ ok: false }))) as {
+    ok: boolean;
+    error?: string;
+  };
+  return data;
+}
+
 // ===================== 账号 / 登录态 =====================
 
 /** 注册即登录：用户名+密码 → {userId, username, token}。存量账号同名会 claim（补设密码） */

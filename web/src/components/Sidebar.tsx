@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -17,6 +18,7 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
 import MenuIcon from "@mui/icons-material/Menu";
 import type { ChatRecord } from "../types";
+import { fetchVersion } from "../api";
 
 interface Props {
   chats: ChatRecord[];
@@ -43,6 +45,16 @@ export default function Sidebar({
   onNew,
   onDelete,
 }: Props) {
+  const [version, setVersion] = useState<string>("");
+
+  useEffect(() => {
+    fetchVersion()
+      .then((info) => setVersion(info.current))
+      .catch(() => {
+        /* 开发环境下无此端点，静默忽略 */
+      });
+  }, []);
+
   const sortedChats = [...chats].sort(
     (left, right) => (Date.parse(right.lastAt) || 0) - (Date.parse(left.lastAt) || 0),
   );
@@ -201,10 +213,15 @@ export default function Sidebar({
         )}
       </List>
 
-      <Box sx={{ px: 2, py: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
+      <Box sx={{ px: 2, py: 1.5, borderTop: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", gap: 1 }}>
         <Typography variant="caption" color="text.disabled">
           WebMirror 工作台
         </Typography>
+        {version && (
+          <Typography variant="caption" color="text.disabled">
+            v{version}
+          </Typography>
+        )}
       </Box>
     </Box>
   );

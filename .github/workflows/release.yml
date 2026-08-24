@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: desktop/go.sum
+
+      - name: Build frontend
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Copy dist into embed dir
+        shell: bash
+        run: |
+          rm -rf desktop/internal/static/dist
+          mkdir -p desktop/internal/static/dist
+          cp -r web/dist/* desktop/internal/static/dist/
+
+      - name: Install rsrc
+        run: go install github.com/akavel/rsrc/cmd/rsrc@latest
+
+      - name: Embed exe icon
+        working-directory: desktop
+        run: rsrc -ico icon.ico -o rsrc.syso
+
+      - name: Build desktop gateway exe
+        working-directory: desktop
+        shell: bash
+        env:
+          APP_VERSION: ${{ github.ref_name }}
+          APP_REPO: ${{ github.repository }}
+        run: |
+          go build -ldflags="-H windowsgui -s -w -X main.Version=${APP_VERSION} -X main.Repo=${APP_REPO}" -o ../webmirror-desktop.exe .
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: webmirror-desktop.exe

@@ -7,6 +7,7 @@ import MessageList from "./components/MessageList";
 import InputArea from "./components/InputArea";
 import ImageViewer from "./components/ImageViewer";
 import AccountBar from "./components/AccountBar";
+import UpdateBanner from "./components/UpdateBanner";
 import { openStream, submitPrompt, fetchMe, fetchConversations, fetchMessages, deleteConversation, getToken, clearToken } from "./api";
 import { DEFAULT_PROJECT, CHAT_HISTORY_STORAGE_KEY, USER_STORAGE_KEY } from "./config";
 import type { Account, ChatRecord, ChatStatus, DisplayMessage, SSEResult } from "./types";
@@ -486,6 +487,7 @@ export default function App() {
       />
 
       <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <UpdateBanner />
         {!activeChat ? (
           <Welcome
             onSend={handleSend}

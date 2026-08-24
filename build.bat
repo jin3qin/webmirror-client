@@ -99,7 +99,12 @@ if not errorlevel 1 (
 rem --- 7. build the desktop gateway exe ---
 echo   [7] building webmirror-desktop.exe...
 pushd desktop
-go build -ldflags="-H windowsgui -s -w" -o "..\webmirror-desktop.exe" .
+rem APP_VERSION / APP_REPO: leave empty for local dev (auto-disable update check).
+rem CI injects real values via -ldflags, e.g. -X main.Version=v1.2.3 -X main.Repo=owner/repo.
+set "APP_VERSION=%APP_VERSION%"
+if "%APP_VERSION%"=="" set "APP_VERSION=dev"
+set "APP_REPO=%APP_REPO%"
+go build -ldflags="-H windowsgui -s -w -X main.Version=%APP_VERSION% -X main.Repo=%APP_REPO%" -o "..\webmirror-desktop.exe" .
 if errorlevel 1 (
   echo [ERROR] go build failed
   popd

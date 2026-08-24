@@ -40,6 +40,9 @@ func main() {
 		}
 	}()
 
+	// 后台检测 GitHub 新版本（本地 dev 构建或空 Repo 时自动跳过）
+	startUpdateChecker()
+
 	systray.Run(func() {
 		systray.SetIcon(iconBytes)
 		systray.SetTitle("WebMirror")
@@ -85,6 +88,10 @@ func runGateway(port, backendURL string) error {
 
 	r := gin.New()
 	r.Use(gin.Recovery())
+
+	// 更新检测端点（由网关直接处理，不转发给后端，使用 /desktop 前缀避免与 /api/* 冲突）
+	r.GET("/desktop/version", versionHandler)
+	r.POST("/desktop/update/do", updateDoHandler)
 
 	// 业务 API 与图片静态资源反代到 webmirror 后端（同端口由 webmirror 后端提供）
 	r.Any("/api/*path", gin.WrapH(proxy))

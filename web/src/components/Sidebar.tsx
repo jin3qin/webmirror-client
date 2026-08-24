@@ -219,7 +219,7 @@ export default function Sidebar({
         </Typography>
         {version && (
           <Typography variant="caption" color="text.disabled">
-            v{version}
+            {version}
           </Typography>
         )}
       </Box>

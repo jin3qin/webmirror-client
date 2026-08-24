@@ -94,14 +94,16 @@ export interface VersionInfo {
 
 /** 拉取当前/最新版本信息（桌面 exe 网关提供；dev 环境无此端点会抛错，调用方需静默处理） */
 export async function fetchVersion(): Promise<VersionInfo> {
-  const response = await apiFetch("/desktop/version");
+  // /desktop/* 端点由网关提供，强制走相对路径，不受后端地址配置影响
+  const response = await fetch(`${API_BASE}/desktop/version`);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return (await response.json()) as VersionInfo;
 }
 
 /** 触发桌面端自更新（下载新 exe 并替换重启）。成功时进程会重启，请求可能不返回。 */
 export async function triggerUpdate(): Promise<{ ok: boolean; error?: string }> {
-  const response = await apiFetch("/desktop/update/do", { method: "POST" });
+  // /desktop/* 端点由网关提供，强制走相对路径，不受后端地址配置影响
+  const response = await fetch(`${API_BASE}/desktop/update/do`, { method: "POST" });
   const data = (await response.json().catch(() => ({ ok: false }))) as {
     ok: boolean;
     error?: string;

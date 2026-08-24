@@ -1,7 +1,7 @@
 import type { Account, ConversationSummary, Message, SubmitReq, SubmitResp } from "./types";
 import { BACKEND_URL_KEY } from "./config";
 
-/** 获取当前后端地址：优先读 localStorage，未配置时返回空字符串（走网关代理） */
+/** 获取当前服务器地址：优先读 localStorage，未配置时返回空字符串（走网关代理） */
 export function getBackendUrl(): string {
   try {
     const saved = localStorage.getItem(BACKEND_URL_KEY);
@@ -12,7 +12,7 @@ export function getBackendUrl(): string {
   return ""; // 空字符串表示使用相对路径，由网关或 Vite proxy 转发
 }
 
-/** 设置后端地址（登录弹窗保存时调用） */
+/** 设置服务器地址（登录弹窗保存时调用） */
 export function setBackendUrl(url: string): void {
   try {
     localStorage.setItem(BACKEND_URL_KEY, url.trim());
@@ -60,7 +60,7 @@ function authFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  // 如果是本地开发（vite proxy），使用空 API_BASE；否则使用配置的后端地址
+  // 如果是本地开发（vite proxy），使用空 API_BASE；否则使用配置的服务器地址
   const base = import.meta.env.DEV ? API_BASE : backendUrl;
   return fetch(`${base}${input}`, { ...init, headers });
 }
@@ -74,7 +74,7 @@ export function imageUrl(rel: string): string {
   return base + (rel.startsWith("/") ? rel : `/${rel}`);
 }
 
-/** 通用的 fetch 封装：自动根据环境选择后端地址 */
+/** 通用的 fetch 封装：自动根据环境选择服务器地址 */
 function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const backendUrl = getBackendUrl();
   const base = import.meta.env.DEV ? API_BASE : backendUrl;
@@ -94,7 +94,7 @@ export interface VersionInfo {
 
 /** 拉取当前/最新版本信息（桌面 exe 网关提供；dev 环境无此端点会抛错，调用方需静默处理） */
 export async function fetchVersion(): Promise<VersionInfo> {
-  // /desktop/* 端点由网关提供，强制走相对路径，不受后端地址配置影响
+  // /desktop/* 端点由网关提供，强制走相对路径，不受服务器地址配置影响
   const response = await fetch(`${API_BASE}/desktop/version`);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return (await response.json()) as VersionInfo;
@@ -102,7 +102,7 @@ export async function fetchVersion(): Promise<VersionInfo> {
 
 /** 触发桌面端自更新（下载新 exe 并替换重启）。成功时进程会重启，请求可能不返回。 */
 export async function triggerUpdate(): Promise<{ ok: boolean; error?: string }> {
-  // /desktop/* 端点由网关提供，强制走相对路径，不受后端地址配置影响
+  // /desktop/* 端点由网关提供，强制走相对路径，不受服务器地址配置影响
   const response = await fetch(`${API_BASE}/desktop/update/do`, { method: "POST" });
   const data = (await response.json().catch(() => ({ ok: false }))) as {
     ok: boolean;

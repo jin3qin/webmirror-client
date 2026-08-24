@@ -54,7 +54,7 @@ export default function AccountBar({ account, onChange }: Props) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // 后端地址配置
+  // 服务器地址配置
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [backendUrl, setBackendUrlState] = useState(getBackendUrl);
   const [testing, setTesting] = useState(false);
@@ -210,7 +210,7 @@ export default function AccountBar({ account, onChange }: Props) {
             {err && <Typography color="error" variant="body2">{err}</Typography>}
           </DialogContent>
           <DialogActions>
-            <Tooltip title="配置后端地址">
+            <Tooltip title="配置服务器地址">
               <IconButton size="small" onClick={() => setSettingsOpen(true)}>
                 <SettingsIcon fontSize="small" />
               </IconButton>
@@ -223,18 +223,18 @@ export default function AccountBar({ account, onChange }: Props) {
           </DialogActions>
         </Dialog>
 
-        {/* 后端地址设置对话框 */}
+        {/* 服务器地址设置对话框 */}
         <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)}>
-          <DialogTitle>后端配置</DialogTitle>
+          <DialogTitle>服务器配置</DialogTitle>
           <DialogContent sx={{ width: 400, display: "flex", flexDirection: "column", gap: 2 }}>
             <TextField
-              label="后端地址"
+              label="服务器地址"
               value={backendUrl}
               onChange={(e) => setBackendUrlState(e.target.value)}
               size="small"
               fullWidth
               placeholder="http://localhost:8080"
-              helperText="WebMirror 后端服务地址"
+              helperText="WebMirror 服务器地址"
               sx={{ mt: 1 }}
             />
             <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>

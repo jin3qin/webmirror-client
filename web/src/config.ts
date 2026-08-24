@@ -24,7 +24,7 @@ export const CHAT_HISTORY_STORAGE_KEY = "webmirror.chat-records.v2";
 /** 当前登录账号 userId 存储 key（注册/绑定后写入 localStorage） */
 export const USER_STORAGE_KEY = "webmirror.user.v1";
 
-/** 后端地址存储 key（登录弹窗可修改，默认为本地地址） */
+/** 服务器地址存储 key（登录弹窗可修改，默认为本地地址） */
 export const BACKEND_URL_KEY = "webmirror.backend-url.v1";
 
 /** 上次登录用户名存储 key（用于自动填充，不保存密码） */

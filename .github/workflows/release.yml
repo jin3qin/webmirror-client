@@ -19,8 +19,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
-          cache-dependency-path: web/package-lock.json
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -28,10 +26,22 @@ jobs:
           go-version: "1.22"
           cache-dependency-path: desktop/go.sum
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate icons from logo.png
+        shell: bash
+        run: |
+          mkdir -p web/public
+          cp logo.png web/public/logo.png
+          python desktop/gen_icon.py
+
       - name: Build frontend
         working-directory: web
         run: |
-          npm ci
+          npm install
           npm run build
 
       - name: Copy dist into embed dir
@@ -42,7 +52,7 @@ jobs:
           cp -r web/dist/* desktop/internal/static/dist/
 
       - name: Install rsrc
-        run: go install github.com/akavel/rsrc/cmd/rsrc@latest
+        run: go install github.com/akavel/rsrc@latest
 
       - name: Embed exe icon
         working-directory: desktop

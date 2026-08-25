@@ -1,33 +1,32 @@
 import React from "react";
-import { Box, IconButton, Tooltip } from "@mui/material";
+import { Box, IconButton, Tooltip, useTheme } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 /**
  * 轻量 Markdown 渲染（零依赖）：
  * 覆盖远端应答中最常见的语法 —— 代码块 / 行内代码 / 加粗 / 标题 / 列表 / 表格 / 链接。
  * 超出范围的内容退化为纯文本，保证不丢信息。
+ * 主题自适应：文本/表格/引用等走 MUI theme token；
+ * 代码块固定深色（GitHub/ChatGPT/Claude 通行做法，与主题模式无关）。
  */
 export default function LightMarkdown({ text }: { text: string }) {
+  const theme = useTheme();
   const blocks = splitBlocks(text);
+  const isDark = theme.palette.mode === "dark";
+
   return (
     <Box
       sx={{
         "& p": { my: 0.5, lineHeight: 1.7, fontSize: "0.95rem" },
-        "& pre": {
-          bgcolor: "#f5f5f5",
-          borderRadius: 1,
-          p: 1.5,
-          overflowX: "auto",
-          fontSize: "0.85rem",
-          my: 1,
-        },
         "& code": {
           fontFamily: "Consolas, Menlo, monospace",
           fontSize: "0.85em",
         },
         "& p code, & li code": {
-          bgcolor: "#f5f5f5",
+          bgcolor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+          color: isDark ? "#ffb4a1" : "#c7254e",
           px: 0.5,
+          py: 0.1,
           borderRadius: 0.5,
         },
         "& table": {
@@ -36,12 +35,16 @@ export default function LightMarkdown({ text }: { text: string }) {
           width: "max-content",
           maxWidth: "100%",
           "& th, & td": {
-            border: "1px solid #ddd",
+            border: "1px solid",
+            borderColor: "divider",
             px: 1,
             py: 0.5,
             fontSize: "0.88rem",
           },
-          "& th": { bgcolor: "#fafafa", fontWeight: 600 },
+          "& th": {
+            bgcolor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+            fontWeight: 600,
+          },
         },
         "& .md-table-wrap": {
           overflowX: "auto",
@@ -58,7 +61,7 @@ export default function LightMarkdown({ text }: { text: string }) {
         "& h4": { fontSize: "0.98rem" },
         "& ul, & ol": { pl: 3, my: 0.5 },
         "& li": { lineHeight: 1.7 },
-        "& hr": { border: "none", borderTop: "1px solid #eee", my: 1.5 },
+        "& hr": { border: "none", borderTop: "1px solid", borderColor: "divider", my: 1.5 },
         wordBreak: "break-word",
       }}
     >
@@ -103,9 +106,7 @@ function splitBlocks(text: string): Block[] {
       continue;
     }
 
-    // 表格：表头行含 | + 下一行是分隔行。
-    // 分隔行格式不固定：远端可能生成 "| --- | --- |"（以 | 起头）或
-    // "--- | --- | ---"（以 - 起头）。统一判据：含 |、含 -、且整体只由 | : - = 空格组成。
+    // 表格
     const isTableSep = (s: string) => {
       const t = s.trim();
       return t.includes("|") && /-/.test(t) && /^[\s|:\-=]+$/.test(t);
@@ -113,7 +114,7 @@ function splitBlocks(text: string): Block[] {
     if (line.trim().includes("|") && i + 1 < n && isTableSep(lines[i + 1])) {
       const rows: string[][] = [];
       rows.push(splitTableRow(line));
-      i += 2; // 跳过表头和分隔行
+      i += 2;
       while (i < n && lines[i].trim().includes("|")) {
         rows.push(splitTableRow(lines[i]));
         i++;
@@ -122,7 +123,6 @@ function splitBlocks(text: string): Block[] {
       continue;
     }
 
-    // 标题
     const h = /^(#{1,4})\s+(.*)$/.exec(line);
     if (h) {
       blocks.push({ type: "heading", level: h[1].length, text: h[2] });
@@ -130,21 +130,18 @@ function splitBlocks(text: string): Block[] {
       continue;
     }
 
-    // 分隔线
     if (/^\s*(---|\*\*\*|___)\s*$/.test(line)) {
       blocks.push({ type: "hr" });
       i++;
       continue;
     }
 
-    // 引用
     if (line.trim().startsWith(">")) {
       blocks.push({ type: "quote", text: line.trim().replace(/^>\s?/, "") });
       i++;
       continue;
     }
 
-    // 列表（有序/无序），聚合连续项
     if (/^\s*[-*+]\s+/.test(line) || /^\s*\d+[.)]\s+/.test(line)) {
       const ordered = /^\s*\d+[.)]\s+/.test(line);
       const items: string[] = [];
@@ -154,7 +151,6 @@ function splitBlocks(text: string): Block[] {
           items.push(t.replace(ordered ? /^\d+[.)]\s+/ : /^[-*+]\s+/, ""));
           i++;
         } else if (/^\s+\S/.test(lines[i]) && items.length > 0) {
-          // 续行
           items[items.length - 1] += " " + lines[i].trim();
           i++;
         } else {
@@ -165,13 +161,11 @@ function splitBlocks(text: string): Block[] {
       continue;
     }
 
-    // 空行跳过
     if (line.trim() === "") {
       i++;
       continue;
     }
 
-    // 普通段落（聚合到下一个空行/块级语法）
     const buf: string[] = [line];
     i++;
     while (
@@ -258,9 +252,10 @@ function parseInline(text: string): InlinePart[] {
 // ==================== 块渲染 ====================
 
 function Block({ block }: { block: Block }) {
+  const theme = useTheme();
   switch (block.type) {
     case "code":
-      return <CodeBlock code={block.code || " "} />;
+      return <CodeBlock code={block.code || " "} lang={block.lang} />;
     case "table":
       return (
         <div className="md-table-wrap">
@@ -306,7 +301,7 @@ function Block({ block }: { block: Block }) {
       );
     case "quote":
       return (
-        <Box sx={{ borderLeft: "3px solid #ddd", pl: 1.5, my: 0.5, color: "text.secondary" }}>
+        <Box sx={{ borderLeft: `3px solid ${theme.palette.divider}`, pl: 1.5, my: 0.5, color: "text.secondary" }}>
           <Inline text={block.text} />
         </Box>
       );
@@ -329,8 +324,16 @@ function Block({ block }: { block: Block }) {
   }
 }
 
-// 代码块：右上角复制按钮（贴近原生体验）
-function CodeBlock({ code }: { code: string }) {
+// ==================== 代码块（始终深色，与主题模式无关） ====================
+
+// 代码块始终用深色背景 + 浅色文字，类似 GitHub / ChatGPT / Claude 的标准代码块样式。
+// 这样无论 light 还是 dark 主题，代码块都清晰、对比度高、不刺眼。
+const CODE_BG = "#1e1e2e";     // 深蓝黑（接近 GitHub dark editor）
+const CODE_TEXT = "#e5e5e7";   // 浅色文字，高对比度
+const CODE_HEADER_BG = "#15151f";
+const CODE_HEADER_TEXT = "#9ca3af";
+
+function CodeBlock({ code, lang }: { code: string; lang: string }) {
   const [copied, setCopied] = React.useState(false);
   const copy = () => {
     navigator.clipboard?.writeText(code).then(
@@ -342,23 +345,75 @@ function CodeBlock({ code }: { code: string }) {
     );
   };
   return (
-    <Box sx={{ position: "relative", my: 1 }}>
-      <Tooltip title={copied ? "已复制" : "复制"}>
-        <IconButton
-          size="small"
-          onClick={copy}
+    <Box
+      sx={{
+        my: 1,
+        borderRadius: 1.5,
+        overflow: "hidden",
+        bgcolor: CODE_BG,
+        color: CODE_TEXT,
+        border: "1px solid rgba(255,255,255,0.08)",
+      }}
+    >
+      {/* 标题栏：语言标签 + 复制按钮 */}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          px: 1.5,
+          py: 0.5,
+          bgcolor: CODE_HEADER_BG,
+          color: CODE_HEADER_TEXT,
+          fontSize: "0.75rem",
+          fontFamily: "Consolas, Menlo, monospace",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          minHeight: 28,
+        }}
+      >
+        <Box sx={{ textTransform: "lowercase", letterSpacing: "0.03em", opacity: 0.85 }}>
+          {lang || "code"}
+        </Box>
+        <Tooltip title={copied ? "已复制" : "复制"}>
+          <IconButton
+            size="small"
+            onClick={copy}
+            sx={{
+              color: CODE_HEADER_TEXT,
+              p: 0.4,
+              "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.1)" },
+            }}
+          >
+            <ContentCopyIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        </Tooltip>
+      </Box>
+      <Box
+        component="pre"
+        sx={{
+          m: 0,
+          p: 1.5,
+          overflowX: "auto",
+          fontSize: "0.85rem",
+          lineHeight: 1.6,
+          fontFamily: "Consolas, Menlo, monospace",
+          color: CODE_TEXT,
+          bgcolor: "transparent",
+        }}
+      >
+        <Box
+          component="code"
           sx={{
-            position: "absolute",
-            top: 4,
-            right: 4,
-            bgcolor: "rgba(255,255,255,0.8)",
-            "&:hover": { bgcolor: "rgba(255,255,255,1)" },
+            fontFamily: "Consolas, Menlo, monospace",
+            fontSize: "0.85rem",
+            color: "inherit",
+            bgcolor: "transparent",
+            p: 0,
           }}
         >
-          <ContentCopyIcon sx={{ fontSize: 16 }} />
-        </IconButton>
-      </Tooltip>
-      <pre>{code}</pre>
+          {code}
+        </Box>
+      </Box>
     </Box>
   );
 }

@@ -17,8 +17,11 @@ import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
 import MenuIcon from "@mui/icons-material/Menu";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
+import LightModeIcon from "@mui/icons-material/LightMode";
 import type { ChatRecord } from "../types";
 import { fetchVersion } from "../api";
+import { useThemeMode } from "../theme";
 
 interface Props {
   chats: ChatRecord[];
@@ -46,6 +49,7 @@ export default function Sidebar({
   onDelete,
 }: Props) {
   const [version, setVersion] = useState<string>("");
+  const { mode, toggleMode } = useThemeMode();
 
   useEffect(() => {
     fetchVersion()
@@ -68,7 +72,7 @@ export default function Sidebar({
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        bgcolor: "#f7f7f8",
+        bgcolor: "background.default",
       }}
     >
       <Box sx={{ px: 1.75, pt: 1.5, pb: 1 }}>
@@ -82,11 +86,13 @@ export default function Sidebar({
           <Typography sx={{ fontWeight: 750, letterSpacing: "-0.02em", flex: 1 }}>
             WebMirror
           </Typography>
+          <Tooltip title={mode === "dark" ? "切换浅色" : "切换深色"}>
+            <IconButton size="small" onClick={toggleMode}>
+              {mode === "dark" ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+            </IconButton>
+          </Tooltip>
           <Tooltip title={collapsed ? "展开侧栏" : "收起侧栏"}>
-            <IconButton
-              size="small"
-              onClick={onToggle}
-            >
+            <IconButton size="small" onClick={onToggle}>
               {collapsed ? <MenuIcon fontSize="small" /> : <CloseIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
@@ -236,11 +242,11 @@ export default function Sidebar({
           width: collapsed ? 60 : DRAWER_WIDTH,
           transition: "width 0.2s ease-in-out",
           overflow: "hidden",
-          bgcolor: "#f7f7f8",
-          borderRight: "1px solid",
-          borderColor: "divider",
-        }}
-      >
+        bgcolor: "background.default",
+        borderRight: "1px solid",
+        borderColor: "divider",
+      }}
+    >
         {collapsed ? (
           /* 收起状态：显示细条 */
           <Box

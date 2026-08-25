@@ -63,6 +63,21 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 监听「被其它设备登录顶替 / 会话失效」事件：强制回到登录并提示
+  useEffect(() => {
+    const onUnauthorized = () => {
+      clearToken();
+      localStorage.removeItem(USER_STORAGE_KEY);
+      setAccount(null);
+      setChatRecords([]);
+      setActiveChatId(null);
+      setNotice({ msg: "登录已失效：可能在其它设备登录了同一账号（已被顶替），请重新登录", severity: "warning" });
+    };
+    window.addEventListener("webmirror:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("webmirror:unauthorized", onUnauthorized);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 登录态变化时从服务端同步对话列表（服务端权威）；登出则清空
   useEffect(() => {
     if (!account || !getToken()) {

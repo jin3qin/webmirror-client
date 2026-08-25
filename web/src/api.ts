@@ -62,7 +62,15 @@ function authFetch(input: string, init: RequestInit = {}): Promise<Response> {
   if (token) headers.set("Authorization", `Bearer ${token}`);
   // 如果是本地开发（vite proxy），使用空 API_BASE；否则使用配置的服务器地址
   const base = import.meta.env.DEV ? API_BASE : backendUrl;
-  return fetch(`${base}${input}`, { ...init, headers });
+  return fetch(`${base}${input}`, { ...init, headers }).then((res) => {
+    if (res.status === 401) {
+      // 登录态失效（被其它设备登录踢下线 / 会话过期）：清除本地 token 并广播，
+      // 由 App.tsx 监听后强制回到登录界面并提示。
+      clearToken();
+      window.dispatchEvent(new CustomEvent("webmirror:unauthorized"));
+    }
+    return res;
+  });
 }
 
 /** 拼接后端图片完整 URL */

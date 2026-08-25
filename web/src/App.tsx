@@ -489,12 +489,14 @@ export default function App() {
       <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <UpdateBanner />
         {!activeChat ? (
-          <Welcome
-            onSend={handleSend}
-            onMenu={() => setMobileSidebarOpen(true)}
-            sending={Boolean(sendingChatId)}
-            actions={<AccountBar account={account} onChange={setAccount} />}
-          />
+          <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "auto" }}>
+            <Welcome
+              onSend={handleSend}
+              onMenu={() => setMobileSidebarOpen(true)}
+              sending={Boolean(sendingChatId)}
+              actions={<AccountBar account={account} onChange={setAccount} />}
+            />
+          </Box>
         ) : (
           <>
             <ConversationHeader

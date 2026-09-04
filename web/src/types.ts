@@ -37,6 +37,17 @@ export interface SubmitReq {
 /** 提交响应 */
 export interface SubmitResp {
   taskId: string;
+  /** v6：任务在队列中的位置（1 = 下一个被领取） */
+  queuePosition: number;
+}
+
+/** v6 队列状态（GET /api/queue 返回） */
+export interface QueueStatus {
+  globalPending: number;
+  maxQueueSize: number;
+  userPending: number;
+  maxUserPending: number;
+  queuePosition: number;
 }
 
 /** SSE result 事件 data */

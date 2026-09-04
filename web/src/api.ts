@@ -1,4 +1,4 @@
-import type { Account, ConversationSummary, Message, SubmitReq, SubmitResp } from "./types";
+import type { Account, ConversationSummary, Message, SubmitReq, SubmitResp, QueueStatus } from "./types";
 import { BACKEND_URL_KEY } from "./config";
 
 /** 获取当前服务器地址：优先读 localStorage，未配置时返回空字符串（走网关代理） */
@@ -236,6 +236,13 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   const params = new URLSearchParams({ conversationId });
   const response = await authFetch(`/api/conversations?${params}`, { method: "DELETE" });
   if (!response.ok) throw new Error(`删除对话失败: ${response.status}`);
+}
+
+/** 查询队列状态（受保护） */
+export async function fetchQueueStatus(): Promise<QueueStatus> {
+  const response = await authFetch("/api/queue");
+  if (!response.ok) throw new Error(`查询队列状态失败: ${response.status}`);
+  return response.json() as Promise<QueueStatus>;
 }
 
 // ===================== 提交 / SSE =====================

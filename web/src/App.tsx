@@ -8,9 +8,9 @@ import InputArea from "./components/InputArea";
 import ImageViewer from "./components/ImageViewer";
 import AccountBar from "./components/AccountBar";
 import UpdateBanner from "./components/UpdateBanner";
-import { openStream, submitPrompt, fetchMe, fetchConversations, fetchMessages, deleteConversation, getToken, clearToken } from "./api";
+import { openStream, submitPrompt, fetchMe, fetchConversations, fetchMessages, deleteConversation, getToken, clearToken, fetchQueueStatus } from "./api";
 import { DEFAULT_PROJECT, CHAT_HISTORY_STORAGE_KEY, USER_STORAGE_KEY } from "./config";
-import type { Account, ChatRecord, ChatStatus, DisplayMessage, SSEResult } from "./types";
+import type { Account, ChatRecord, ChatStatus, DisplayMessage, SSEResult, QueueStatus } from "./types";
 
 /** 从 localStorage 读取上次登录账号（仅作即时渲染兜底，真正身份靠 token 校验） */
 function loadUser(): Account | null {
@@ -40,6 +40,7 @@ export default function App() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [account, setAccount] = useState<Account | null>(loadUser);
   const [loadingConvId, setLoadingConvId] = useState<string | null>(null);
+  const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const optimisticIdRef = useRef(-1);
 
   useEffect(() => {
@@ -109,6 +110,26 @@ export default function App() {
         console.warn("同步对话列表失败:", e);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account?.userId]);
+
+  // v6 队列状态轮询：登录后每 5 秒刷新一次
+  useEffect(() => {
+    if (!account || !getToken()) {
+      setQueueStatus(null);
+      return;
+    }
+
+    const poll = () => {
+      fetchQueueStatus()
+        .then(setQueueStatus)
+        .catch(() => {
+          /* 静默失败 */
+        });
+    };
+
+    poll(); // 立即拉一次
+    const timer = setInterval(poll, 5000);
+    return () => clearInterval(timer);
   }, [account?.userId]);
 
   const activeChat = useMemo(
@@ -303,6 +324,28 @@ export default function App() {
         return;
       }
 
+      // v6 队列配额检查：实时查询，不依赖缓存
+      try {
+        const currentQueue = await fetchQueueStatus();
+        if (currentQueue.globalPending >= currentQueue.maxQueueSize) {
+          setNotice({
+            msg: `队列已满（${currentQueue.globalPending}/${currentQueue.maxQueueSize}），请稍后再试`,
+            severity: "error",
+          });
+          return;
+        }
+        if (currentQueue.userPending >= currentQueue.maxUserPending) {
+          setNotice({
+            msg: "您已有任务在排队或执行中，请等待完成后再提交",
+            severity: "warning",
+          });
+          return;
+        }
+      } catch (e) {
+        // 查询失败时不阻止提交，让后端再次检查
+        console.warn("队列状态查询失败，继续提交", e);
+      }
+
       const now = new Date().toISOString();
       const optimisticId = optimisticIdRef.current--;
       const userMessage: DisplayMessage = {
@@ -397,8 +440,20 @@ export default function App() {
 
         stream = openStream(taskId);
 
-        stream.addEventListener("pending", () => {
-          setNotice({ msg: "任务已提交，等待插件响应…", severity: "info" });
+        stream.addEventListener("pending", (event) => {
+          try {
+            const data = JSON.parse((event as MessageEvent<string>).data) as { queuePosition?: number };
+            if (data.queuePosition && data.queuePosition > 0) {
+              setNotice({
+                msg: `任务已提交，前面还有 ${data.queuePosition - 1} 人在排队…`,
+                severity: "info",
+              });
+            } else {
+              setNotice({ msg: "任务已提交，等待插件响应…", severity: "info" });
+            }
+          } catch {
+            setNotice({ msg: "任务已提交，等待插件响应…", severity: "info" });
+          }
         });
 
         stream.addEventListener("result", (event) => {
@@ -509,6 +564,9 @@ export default function App() {
               onSend={handleSend}
               onMenu={() => setMobileSidebarOpen(true)}
               sending={Boolean(sendingChatId)}
+              globalQueueFull={queueStatus ? queueStatus.globalPending >= queueStatus.maxQueueSize : false}
+              userQuotaFull={queueStatus ? queueStatus.userPending >= queueStatus.maxUserPending : false}
+              queuePosition={queueStatus?.queuePosition || 0}
               actions={<AccountBar account={account} onChange={setAccount} />}
             />
           </Box>
@@ -554,7 +612,13 @@ export default function App() {
                 onImageClick={setViewerImage}
               />
             </Box>
-            <InputArea onSend={handleSend} sending={Boolean(sendingChatId)} />
+            <InputArea
+              onSend={handleSend}
+              sending={Boolean(sendingChatId)}
+              globalQueueFull={queueStatus ? queueStatus.globalPending >= queueStatus.maxQueueSize : false}
+              userQuotaFull={queueStatus ? queueStatus.userPending >= queueStatus.maxUserPending : false}
+              queuePosition={queueStatus?.queuePosition || 0}
+            />
           </>
         )}
       </Box>

@@ -8,11 +8,17 @@ interface Props {
   onSend: (prompt: string) => void;
   onMenu: () => void;
   sending: boolean;
+  /** 全局队列已满 */
+  globalQueueFull?: boolean;
+  /** 用户配额已满 */
+  userQuotaFull?: boolean;
+  /** 当前用户排队位置 */
+  queuePosition?: number;
   /** 右上角插槽：账号条（注册/绑定项目） */
   actions?: ReactNode;
 }
 
-export default function Welcome({ onSend, onMenu, sending, actions }: Props) {
+export default function Welcome({ onSend, onMenu, sending, globalQueueFull, userQuotaFull, queuePosition, actions }: Props) {
   return (
     <Box
       sx={{
@@ -73,7 +79,14 @@ export default function Welcome({ onSend, onMenu, sending, actions }: Props) {
         WebMirror 将你的请求交由远端会话处理
       </Typography>
       <Box sx={{ width: "100%", maxWidth: 720 }}>
-        <InputArea onSend={onSend} sending={sending} compact />
+        <InputArea
+          onSend={onSend}
+          sending={sending}
+          compact
+          globalQueueFull={globalQueueFull}
+          userQuotaFull={userQuotaFull}
+          queuePosition={queuePosition}
+        />
       </Box>
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 2 }}>
         <AutoAwesomeRoundedIcon sx={{ fontSize: 15, color: "primary.main" }} />
